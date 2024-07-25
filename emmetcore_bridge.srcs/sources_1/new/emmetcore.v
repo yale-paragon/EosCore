@@ -1,17 +1,18 @@
+
 `timescale 1ns / 1ps
 
 //////////////////////////////////////////////////////////////////////////////////
 //
 // Company: Yale Efficient Computing Lab
 // Engineer: Emmet Houghton
-// 
+//
 // Create Date: 07/02/2024 12:48:57 PM
 // Design Name: 64B/66B Low-latency transceiver core
 // Module Name: emmetcore
 // Target Devices: Programmed on xcvm1802-vsva2197-2MP-e-S (VMK180 Evaluation Board)
 // Tool Versions: V1.0
-// Description: Low-latency transceiver module for 64B/66B encoding 
-// 
+// Description: Low-latency transceiver module for 64B/66B encoding
+//
 // Some notes on using this core:
 // - The core resets while tx_corereset_n is *low* so that it resets upon initialization automatically.
 // - The code assumes both partners are set to the same line rate (so that tx_userclk and rx_userclk have the same frequencies on each end).
@@ -19,8 +20,6 @@
 // - An early error flag (within ~128 cycles after streaming begins) suggests all data is likely invalid.
 // - A later error flag could suggest a gearbox drift, partner shutdown, or a bit flip. Try resetting and re-attempt.
 // - If streaming doesn't resume after boards are reprogrammed, raise tx_corereset_n for at least one cycle.
-//
-//////////////////////////////////////////////////////////////////////////////////
 
 module emmetcore(
     // Reset signal (active low)
@@ -82,10 +81,17 @@ module emmetcore(
     end         
     
     
-    // Initial random seed for LFSR, also used for scrambling
-    localparam [63:0] SEED_KEY = 64'hEABCC48C6C567872;
-    // Key to scramble parity messages (must be different from scrambler, otherwise parity messages likely contain large bit majorities)
-    localparam [63:0] POLARITY_PARITY_KEY = 64'hD5F4A1B3E6C9D2F1;
+    // Note: functionality could be combined to use only 2 of these keys, but I keep them distinct for debugging purposes.
+    // Initial random seed for LFSR (32x1, 32x0)
+    localparam [63:0] LFSR_SEED = 64'hE9734555354A526D;
+    // Used to tell partner when gearbox slips (33x1, 31x0)
+    localparam [63:0] RESET_SIGNAL = 64'hAA8A8BCD4E95FD3C;
+    // Signals gearbox is aligned and checks polarity (33x1, 31x0)
+    localparam [63:0] POLARITY_CHECK = 64'hB4A5D4AE376C9323;    
+    // Key to scramble parity messages must be different from scrambler (32x1, 32x0)
+    localparam [63:0] PARITY_KEY = 64'hD5F4A1B3E6C9D2F1;
+    // Scrambles data for DC balance (32x1, 32x0)
+    localparam [63:0] SCRAMBLE_KEY = 64'h56B68EA4B5CCA8B4;
 
     // Semi-random sequence generator to align gearbox
     reg [63:0] lfsr_reg;
@@ -95,12 +101,12 @@ module emmetcore(
     // Generates next LFSR sequence and passes it to TX lane
     task cycle_lfsr;
         if (lfsr_reg == 64'b0) begin 
-            lfsr_reg <= SEED_KEY;
-            tx_userdata_out <= SEED_KEY;
+            lfsr_reg <= LFSR_SEED;
+            tx_userdata_out <= LFSR_SEED;
         end
         else begin
             lfsr_reg <= {lfsr_reg[62:0], feedback}; 
-            tx_userdata_out <= lfsr_reg;
+            tx_userdata_out <= lfsr_reg ^ SCRAMBLE_KEY;
         end
     endtask
     
@@ -138,25 +144,19 @@ module emmetcore(
                 // If my gearbox is aligned, send a polarity check message
                 if (coreresetdone_txclkstable) begin
                     tx_header_out <= 2'b00;
-                    tx_userdata_out <= POLARITY_PARITY_KEY;
+                    tx_userdata_out <= POLARITY_CHECK;
                     // If partner's gearbox is also aligned, exit reset (assuming reset input is low, power is good)
                     if (partner_coreresetdone_txclkstable) resetstate_n_txuserclk <= resetstate_n_intermediate;
                 end else begin
                     tx_header_out <= 2'b00;
-                    tx_userdata_out <= SEED_KEY;
+                    tx_userdata_out <= RESET_SIGNAL;
                 end
             end
             // In between, send semi-random sequences with control headers
             else begin
                 reset_cycle_count <= reset_cycle_count + 1;
-                if (!coreresetdone_txclkstable && reset_cycle_count == 0) begin
-                    // Immediately send message letting partner know my gearbox slipped (for error detecting purposes)
-                    tx_userdata_out <= SEED_KEY;
-                    tx_header_out <= 2'b00;
-                end else begin 
-                    tx_header_out <= 2'b01;
-                    cycle_lfsr();
-                end 
+                tx_header_out <= 2'b01;
+                cycle_lfsr();
             end
             tx_parity_reg <= 64'b0;
         end 
@@ -174,13 +174,13 @@ module emmetcore(
                 
                 // Handshake with user program, scramble and pass data to TX lane, update bitwise parity counts
                 if (tx_valid && tx_ready) begin
-                    tx_userdata_out <= tx_data ^ SEED_KEY;
+                    tx_userdata_out <= tx_data ^ SCRAMBLE_KEY;
                     tx_header_out <= 2'b10;
                     tx_parity_reg <= tx_parity_reg ^ tx_data;
                 end else begin
                     // Bitwise parity of data from last set of cycles is scrambled and sent as control block on sequence 7'h00 and between data blocks
                     if ((tx_sequence_out == 7'h20 && increment_sequence) || (tx_ready && tx_header_out == 2'b10)) begin
-                        tx_userdata_out <= tx_parity_reg ^ POLARITY_PARITY_KEY;
+                        tx_userdata_out <= tx_parity_reg ^ PARITY_KEY;
                         tx_header_out <= 2'b01;
                         tx_parity_reg <= 64'b0;                        
                     end else begin 
@@ -234,8 +234,8 @@ module emmetcore(
                         rx_gearboxslip <= 0;
                         error_flag <= 0;
                         if (rx_headervalid_in) begin
-                            rx_data <= rx_userdata_in ^ SEED_KEY;
-                            rx_parity_reg <= rx_parity_reg ^ (rx_userdata_in ^ SEED_KEY);
+                            rx_data <= rx_userdata_in ^ SCRAMBLE_KEY;
+                            rx_parity_reg <= rx_parity_reg ^ (rx_userdata_in ^ SCRAMBLE_KEY);
                             if (coreresetdone_rxclk) rx_valid <= 1;
                             else if (rx_userdata_in != prev_data && !coreresetdone_rxclk) gearboxaligned_count <= gearboxaligned_count +1;
                         end else rx_valid <= 0;
@@ -251,28 +251,28 @@ module emmetcore(
                             coreresetdone_rxclk <= 1;
                         end
                         // Parity check for error detection
-                        if (rx_headervalid_in && rx_valid && rx_parity_reg != (rx_userdata_in ^ POLARITY_PARITY_KEY)) error_flag <= 1;
+                        if (rx_headervalid_in && rx_valid && rx_parity_reg != (rx_userdata_in ^ PARITY_KEY)) error_flag <= 1;
                         else error_flag <= 0;
                         if (rx_headervalid_in) rx_parity_reg <= 0; 
                     end 
                     // 2'b00 and 2'b11 are unused
                     default begin
                         if (rx_headervalid_in) begin
-                            if (rx_header_in == 2'b11 && rx_userdata_in == ~POLARITY_PARITY_KEY) begin
+                            if (rx_header_in == 2'b11 && rx_userdata_in == ~POLARITY_CHECK) begin
                                 rx_polarity <= !rx_polarity;
                                 rx_gearboxslip <= 0;
                                 partner_coreresetdone_rxclk <= 1;
-                            end else if (rx_header_in == 2'b00 && rx_userdata_in == POLARITY_PARITY_KEY) begin
+                            end else if (rx_header_in == 2'b00 && rx_userdata_in == POLARITY_CHECK) begin
                                 rx_gearboxslip <= 0;
                                 partner_coreresetdone_rxclk <= 1;
-                            end else if (rx_header_in == 2'b11 && rx_userdata_in == ~SEED_KEY) begin
+                            end else if (rx_header_in == 2'b11 && rx_userdata_in == ~RESET_SIGNAL) begin
                                 rx_polarity <= !rx_polarity;
                                 rx_gearboxslip <= 0;
                                 if (partner_coreresetdone_rxclk) begin
                                     partner_coreresetdone_rxclk <= 0;
                                     error_flag <= 1;
                                 end
-                            end else if (rx_header_in == 2'b00 && rx_userdata_in == SEED_KEY) begin
+                            end else if (rx_header_in == 2'b00 && rx_userdata_in == RESET_SIGNAL) begin
                                 rx_gearboxslip <= 0;
                                 if (partner_coreresetdone_rxclk) begin
                                     partner_coreresetdone_rxclk <= 0;
@@ -293,4 +293,3 @@ module emmetcore(
     end
     
 endmodule
-
