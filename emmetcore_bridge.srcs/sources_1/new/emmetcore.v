@@ -19,7 +19,7 @@
 // - Expect a delay of roughly 1500 cycles of {tx/rx}_userclk upon each reset. This delay ensures both gearboxes are aligned properly.
 // - An early error flag (within ~128 cycles after streaming begins) suggests all data is likely invalid.
 // - A later error flag could suggest a gearbox drift, partner shutdown, or a bit flip. Try resetting and re-attempt.
-// - If streaming doesn't resume after boards are reprogrammed, raise tx_corereset_n for at least one cycle.
+// - If streaming doesn't resume after boards are reprogrammed, lower tx_corereset_n for at least one cycle.
 
 module emmetcore(
     // Reset signal (active low)
@@ -74,6 +74,7 @@ module emmetcore(
     reg partner_coreresetdone_txclkmeta; 
     reg partner_coreresetdone_txclkstable; 
                   
+    // Some initialization logic from transceivers must operate on separate clock for timing purposes (too slow for GT clocks)                  
     always @(posedge init_clk) begin
         // Initiate a reset under a set of conditions
         if (!tx_corereset_n || !tx_resetdone || !rx_resetdone) resetstate_n_initclk <= 0;
@@ -138,7 +139,7 @@ module emmetcore(
         // Reset state
         if (!resetstate_n_txuserclk || !coreresetdone_txclkstable || !partner_coreresetdone_txclkstable || reset_cycle_count > 0) begin
             tx_ready <= 0;
-            // Every 512 cycles consider exiting the reset cycle
+            // Every 512 cycles consider exiting the reset
             if (reset_cycle_count >= 10'b1000000000 && !((tx_sequence_out == 7'h1f && increment_sequence) || (tx_sequence_out == 7'h20 && !increment_sequence))) begin
                 reset_cycle_count <= 0;
                 // If my gearbox is aligned, send a polarity check message
@@ -148,15 +149,21 @@ module emmetcore(
                     // If partner's gearbox is also aligned, exit reset (assuming reset input is low, power is good)
                     if (partner_coreresetdone_txclkstable) resetstate_n_txuserclk <= resetstate_n_intermediate;
                 end else begin
-                    tx_header_out <= 2'b00;
-                    tx_userdata_out <= RESET_SIGNAL;
+                    tx_header_out <= 2'b01;
+                    cycle_lfsr();
                 end
             end
             // In between, send semi-random sequences with control headers
             else begin
                 reset_cycle_count <= reset_cycle_count + 1;
-                tx_header_out <= 2'b01;
-                cycle_lfsr();
+                if (reset_cycle_count == 64'b0) begin
+                    tx_header_out <= 2'b00;
+                    tx_userdata_out <= RESET_SIGNAL;
+                end
+                else begin
+                    tx_header_out <= 2'b01;
+                    cycle_lfsr();
+                end
             end
             tx_parity_reg <= 64'b0;
         end 
@@ -293,3 +300,4 @@ module emmetcore(
     end
     
 endmodule
+
