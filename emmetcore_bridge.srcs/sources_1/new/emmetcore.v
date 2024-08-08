@@ -13,11 +13,11 @@
 // Description: Low-latency transceiver module for 64B/66B encoding
 //
 // Some notes on using this core:
-// - Recommended line rate: 16 Gbps
-// - The core resets while tx_corereset_n is *low* so that it resets upon initialization automatically. Expect delay during reset.
+// - Recommended line rate: link is stable at line rates up to 20 Gbps error free with a cable less than 1 meter in length
+// - The core resets while tx_corereset_n is *low* so that it resets upon initialization automatically. Expect delay after reset.
 // - The code assumes both partners are set to the same line rate (so that tx_userclk and rx_userclk have the same frequencies on each end).
 // - An early error flag (within ~128 cycles after streaming begins) suggests all data is likely invalid.
-// - A later error flag could suggest a gearbox drift, partner shutdown, or a bit flip. Try resetting and re-attempt.
+// - A later error flag could suggest a gearbox drift, partner shutdown, or bit flips. Try resending packet.
 // - If streaming doesn't resume after boards are reprogrammed, lower tx_corereset_n for at least one cycle.
 //
 //////////////////////////////////////////////////////////////////////////////////
@@ -27,7 +27,7 @@ module emmetcore(
     input tx_corereset_n,
     // Separate, slower clock for initialization
     input init_clk,
-   
+    
     // Transceiver primitives
     input tx_userclk,
     input rx_userclk,
@@ -39,7 +39,7 @@ module emmetcore(
     input [63:0] tx_data,
     input tx_valid,
     output reg tx_ready,
-   
+    
     // TX Lane
     output reg [63:0] tx_userdata_out,
     output reg [1:0] tx_header_out,
@@ -52,7 +52,7 @@ module emmetcore(
     input rx_headervalid_in,
     output reg rx_gearboxslip,
     output reg rx_polarity,
-   
+    
     // RX End
     output reg [63:0] rx_data,
     output reg rx_valid,
@@ -60,29 +60,31 @@ module emmetcore(
     );
          
          
+    // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= RESET/INITIALIZATION =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+          
     // Reset for at least 512 cycles to ensure gearbox alignment
     reg [9:0] reset_cycle_count;
-    // Registers to lock when reset is complete. Need extra registers to cross clock domains    
+    // Registers to lock when reset is complete. Need extra registers to cross clock domains     
     reg resetstate_n_initclk;
     reg resetstate_n_intermediate;
     reg resetstate_n_txuserclk;
     // Raised when this core's gearbox is aligned
     reg coreresetdone_rxclk;
     reg coreresetdone_txclkmeta;  
-    reg coreresetdone_txclkstable;
+    reg coreresetdone_txclkstable; 
     // Raised when partner's gearbox is aligned
     reg partner_coreresetdone_rxclk;    
-    reg partner_coreresetdone_txclkmeta;
-    reg partner_coreresetdone_txclkstable;
-                 
+    reg partner_coreresetdone_txclkmeta; 
+    reg partner_coreresetdone_txclkstable; 
+                  
     // Some initialization logic from transceivers must operate on separate clock for timing purposes (too slow for GT clocks)                  
     always @(posedge init_clk) begin
         // Initiate a reset under a set of conditions
         if (!tx_corereset_n || !tx_resetdone || !rx_resetdone) resetstate_n_initclk <= 0;
         else if (!resetstate_n_initclk) resetstate_n_initclk <= 1;
-    end        
-   
-   
+    end         
+    
+    
     // Note: functionality could be combined to use only 2 of these keys, but I keep them distinct for debugging purposes.
     // Initial random seed for LFSR (32x1, 32x0)
     localparam [63:0] LFSR_SEED = 64'hE9734555354A526D;
@@ -99,28 +101,78 @@ module emmetcore(
     reg [63:0] lfsr_reg;
     wire feedback;
     assign feedback = lfsr_reg[63] ^ lfsr_reg[62] ^ lfsr_reg[60] ^ lfsr_reg[59];
-   
+    
     // Generates next LFSR sequence and passes it to TX lane
     task cycle_lfsr;
-        if (lfsr_reg == 64'b0) begin
+        if (lfsr_reg == 64'b0) begin 
             lfsr_reg <= LFSR_SEED;
             tx_userdata_out <= LFSR_SEED;
         end
         else begin
-            lfsr_reg <= {lfsr_reg[62:0], feedback};
+            lfsr_reg <= {lfsr_reg[62:0], feedback}; 
             tx_userdata_out <= lfsr_reg ^ SCRAMBLE_KEY;
         end
     endtask
-   
-   
-    // Bitwise parity counters for weak error detection
+    
+    
+    // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ERROR CORRECTION UTILITES =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+    
+    // Registers to store the hamming code information of last four data blocks. Last 8 bits for most recent data message, previous 8 for penultimate, etc.
     reg [63:0] tx_parity_reg;
+    // tx_parity_reg is updated every time a data block is sent, rx_parity_reg is updated every time a data message is received
     reg [63:0] rx_parity_reg;
-   
+    // Counter for ensuring we do not send more than 4 data blocks in a row (caps latency for error correction at cost of throughput)
+    reg [2:0] tx_datablockcount;
+    
+    // Calculate a parity bit for a 64-bit message and store it in two registers for redundancy
+    task calc_parity;
+        input integer step;
+        input reg [63:0] msg;
+        output reg parity;
+        output reg parity_redundant;
+        integer i, j;
+        begin
+            parity = 0;
+            parity_redundant = 0;
+            for (i = step; i < 64; i = i + (step << 1)) begin
+                for (j = i; j < i + step && j < 64; j = j + 1) begin
+                    parity = parity ^ msg[j];
+                    parity_redundant = parity_redundant ^ msg[j];
+                end
+            end
+        end
+    endtask
+    
+    // Calculate all parity bits for a 64-bit message
+    task hamming_encode;
+        input [63:0] message_to_encode;
+        inout [63:0] parity_register;
+        begin 
+            parity_register[63:40] <= parity_register[55:32];
+            parity_register[31:8] <= parity_register[23:0];
+
+            calc_parity(1, message_to_encode, parity_register[0], parity_register[32]);
+            calc_parity(2, message_to_encode, parity_register[1], parity_register[33]);
+            calc_parity(4, message_to_encode, parity_register[2], parity_register[34]);
+            calc_parity(8, message_to_encode, parity_register[3], parity_register[35]);
+            calc_parity(16, message_to_encode, parity_register[4], parity_register[36]);
+            calc_parity(32, message_to_encode, parity_register[5], parity_register[37]);
+
+            parity_register[6] <= message_to_encode[0];
+            parity_register[7] <= ^message_to_encode;
+            parity_register[38] <= message_to_encode[0];
+            parity_register[39] <= ^message_to_encode;
+        end
+    endtask
+    
+    // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= TRANSMITTER SIDE =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+    
     // Sequence increments every *other* cycle
     reg increment_sequence;
-       
-   
+    wire sequence_pause_next;
+    // Wire for indicating whether or not data can be sent on the next cycle due to sequence pause
+    assign sequence_pause_next = ((tx_sequence_out == 7'h1f && increment_sequence) || (tx_sequence_out == 7'h20 && !increment_sequence));
+    
     // TX Processing
     always @(posedge tx_userclk) begin
         // Stabilize cross-clock domain registers
@@ -129,19 +181,19 @@ module emmetcore(
         coreresetdone_txclkstable <= coreresetdone_txclkmeta;
         partner_coreresetdone_txclkmeta <= partner_coreresetdone_rxclk;
         partner_coreresetdone_txclkstable <= partner_coreresetdone_txclkmeta;
-       
+        
         // Sequence
         increment_sequence <= !increment_sequence;
         if (increment_sequence) begin
             if (tx_sequence_out >= 7'h20) tx_sequence_out <= 0;
             else tx_sequence_out <= tx_sequence_out + 1;
         end
-               
+                
         // Reset state
         if (!resetstate_n_txuserclk || !coreresetdone_txclkstable || !partner_coreresetdone_txclkstable || reset_cycle_count > 0) begin
             tx_ready <= 0;
             // Every 512 cycles consider exiting the reset
-            if (reset_cycle_count >= 10'b1000000000 && !((tx_sequence_out == 7'h1f && increment_sequence) || (tx_sequence_out == 7'h20 && !increment_sequence))) begin
+            if (reset_cycle_count >= 10'b1000000000 && !sequence_pause_next) begin
                 reset_cycle_count <= 0;
                 // If my gearbox is aligned, send a polarity check message
                 if (coreresetdone_txclkstable) begin
@@ -167,31 +219,33 @@ module emmetcore(
                 end
             end
             tx_parity_reg <= 64'b0;
-        end
-       
+            tx_datablockcount <= 3'b0;       
+        end 
+        
         else begin
             // Prepare/synchronize reset registers
             resetstate_n_txuserclk <= resetstate_n_intermediate;
             reset_cycle_count <= 0;
-           
+            
             // Streaming state
             if (gt_powergood) begin
                 // Cannot accept data during sequence pause
-                if (tx_sequence_out == 7'h1f || (tx_sequence_out == 7'h20 && !increment_sequence)) tx_ready <= 0;
+                if (tx_sequence_out == 7'h1f || (tx_datablockcount == 3'b11 && tx_ready && tx_valid)) tx_ready <= 0;
                 else tx_ready <= 1;
-               
+                
                 // Handshake with user program, scramble and pass data to TX lane, update bitwise parity counts
                 if (tx_valid && tx_ready) begin
                     tx_userdata_out <= tx_data ^ SCRAMBLE_KEY;
                     tx_header_out <= 2'b10;
-                    tx_parity_reg <= tx_parity_reg ^ tx_data;
+                    hamming_encode(tx_data, tx_parity_reg);
+                    tx_datablockcount <= tx_datablockcount + 1;
                 end else begin
                     // Bitwise parity of data from last set of cycles is scrambled and sent as control block on sequence 7'h00 and between data blocks
-                    if ((tx_sequence_out == 7'h20 && increment_sequence) || (tx_ready && tx_header_out == 2'b10)) begin
+                    if (!sequence_pause_next && (tx_header_out == 2'b10 || tx_datablockcount == 3'b100)) begin
                         tx_userdata_out <= tx_parity_reg ^ PARITY_KEY;
                         tx_header_out <= 2'b01;
-                        tx_parity_reg <= 64'b0;                        
-                    end else begin
+                        tx_datablockcount <= 3'b0;       
+                    end else begin 
                         cycle_lfsr();
                         tx_header_out <= 2'b01;
                     end
@@ -202,26 +256,92 @@ module emmetcore(
             else begin
                 cycle_lfsr();
                 tx_header_out <= 2'b01;
-                tx_parity_reg <= 64'b0;
                 tx_ready <= 0;
-            end
+            end 
         end
     end
-   
-   
-    // Determining if partner shuts down. Typically, when a board shuts down, it sents ...101010... or ...111111... across the link
+    
+    // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= RECEIVER SIDE =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+    
+    // Receiver maintains a queue of 4 data blocks because it must wait for error correction information
+    reg [63:0] rx_dataqueue_1;
+    reg [63:0] rx_dataqueue_2;
+    reg [63:0] rx_dataqueue_3;
+    reg [63:0] rx_dataqueue_4;
+    reg [2:0] queuesize;
+    reg [2:0] queuecorrected;
+    reg queueinit; 
+    
+    // When a data block is received, enqueue appropriately and dequeue if a corrected message is available
+    task shift_queue;    
+        begin
+            hamming_encode(rx_userdata_in ^ SCRAMBLE_KEY, rx_parity_reg);
+              
+            rx_dataqueue_1 <= rx_userdata_in ^ SCRAMBLE_KEY;
+            if (!queueinit || queuesize == 3'b0) begin
+                queueinit <= 1'b1;
+                queuesize <= 3'b1;
+                queuecorrected <= 3'b0;
+                rx_valid <= 0;
+            end else if (queuecorrected > 3'b0 || queuesize >= 3'b100) begin
+                if (queuesize > 3'b1) begin
+                    rx_dataqueue_2 <= rx_dataqueue_1;
+                    if (queuesize > 3'b10) begin
+                        rx_dataqueue_3 <= rx_dataqueue_2;
+                        if (queuesize > 3'b11) begin
+                            rx_dataqueue_4 <= rx_dataqueue_3;
+                            rx_data <= rx_dataqueue_4;
+                        end else rx_data <= rx_dataqueue_3;
+                    end else rx_data <= rx_dataqueue_2;
+                end else rx_data <= rx_dataqueue_1;
+                rx_valid <= 1;
+                if (queuecorrected > 3'b0) queuecorrected <= queuecorrected - 1;
+                
+            end else begin
+                queuesize <= queuesize +1;
+                rx_dataqueue_4 <= rx_dataqueue_3;
+                rx_dataqueue_3 <= rx_dataqueue_2;
+                rx_dataqueue_2 <= rx_dataqueue_1;
+                rx_valid <= 0;
+            end
+        end
+    endtask
+    
+    // When a non-data block is received, dequeue if a corrected message is available
+    task dequeue_only;
+        begin
+            if (queuesize > 3'b0 && queuecorrected > 3'b0) begin
+                queuesize <= queuesize - 1;
+                case (queuesize)
+                    3'b100: rx_data <= rx_dataqueue_4;
+                    3'b011: rx_data <= rx_dataqueue_3;
+                    3'b010: rx_data <= rx_dataqueue_2;
+                    3'b001: rx_data <= rx_dataqueue_1;
+                endcase
+                rx_valid <= 1;
+                queuecorrected <= queuecorrected - 1;
+            end
+            else rx_valid <= 0;
+        end
+    endtask
+    
+    // Wire which unscrambles error correction messages (useful abstraction)
+    wire [63:0] parity_data_in;
+    assign parity_data_in = (rx_userdata_in ^ PARITY_KEY);
+        
+    // Registers used for determining if partner shuts down. Typically, when a board shuts down, it sends ...101010... or ...111111... across the link
     reg [1:0] prev_header;
     reg [63:0] prev_data;
     reg [9:0] consecutiveidenticalblock_count;
-   
+    
     // Need many healthy cycles to confirm gearbox alignment
     reg [6:0] gearboxaligned_count;
-   
+    
     // RX processing
     always @(posedge rx_userclk) begin  
         if (gt_powergood) begin
             if (rx_headervalid_in == rx_datavalid_in) begin
-           
+            
                 // Check to see if partner shut down. If so, wait in reset state
                 if (rx_datavalid_in) begin
                     prev_header <= rx_header_in;
@@ -234,19 +354,16 @@ module emmetcore(
                     coreresetdone_rxclk <= 0;
                     partner_coreresetdone_rxclk <= 0;
                     error_flag <= 1;
-                end
-           
+                end 
+            
                 else case (rx_header_in)
                     // Data header
                     2'b10: begin
                         rx_gearboxslip <= 0;
                         error_flag <= 0;
-                        if (rx_headervalid_in) begin
-                            rx_data <= rx_userdata_in ^ SCRAMBLE_KEY;
-                            rx_parity_reg <= rx_parity_reg ^ (rx_userdata_in ^ SCRAMBLE_KEY);
-                            if (coreresetdone_rxclk) rx_valid <= 1;
-                            else if (rx_userdata_in != prev_data && !coreresetdone_rxclk) gearboxaligned_count <= gearboxaligned_count +1;
-                        end else rx_valid <= 0;
+                        if (rx_headervalid_in && rx_userdata_in != prev_data && !coreresetdone_rxclk) gearboxaligned_count <= gearboxaligned_count +1;
+                        if (rx_headervalid_in && coreresetdone_rxclk) shift_queue();
+                        else dequeue_only();
                     end
                     // Control header
                     2'b01: begin                    
@@ -258,14 +375,34 @@ module emmetcore(
                             gearboxaligned_count <= 0;
                             coreresetdone_rxclk <= 1;
                         end
-                        // Parity check for error detection
-                        if (rx_headervalid_in && rx_valid && rx_parity_reg != (rx_userdata_in ^ PARITY_KEY)) error_flag <= 1;
-                        else error_flag <= 0;
-                        if (rx_headervalid_in) rx_parity_reg <= 0;
-                    end
+                        // Error correction logic
+                        if (coreresetdone_rxclk) begin
+                            if (rx_headervalid_in && prev_header == 2'b10) begin
+                                rx_valid <= 0;
+                                queuecorrected <= queuesize;
+                                if (parity_data_in != rx_parity_reg) begin
+                                    if (queuecorrected < 3'b1 && (parity_data_in[38:32] == parity_data_in[6:0]) && (parity_data_in[6:0] != rx_parity_reg[6:0]))
+                                        if (parity_data_in[39] == parity_data_in[7] && parity_data_in[7] == rx_parity_reg[7]) error_flag <= 1;
+                                        else rx_dataqueue_1 <= rx_dataqueue_1 ^ (64'b1 << (parity_data_in[5:0] ^ rx_parity_reg[5:0]));
+                                    if (queuecorrected < 3'b10 && (parity_data_in[46:40] == parity_data_in[14:8]) && (parity_data_in[14:8] != rx_parity_reg[14:8])) 
+                                        if (parity_data_in[47] == parity_data_in[15] && parity_data_in[15] == rx_parity_reg[15]) error_flag <= 1;
+                                        else rx_dataqueue_2 <= rx_dataqueue_2 ^ (64'b1 << (parity_data_in[13:8] ^ rx_parity_reg[13:8]));                                                                        
+                                    if (queuecorrected < 3'b11 && (parity_data_in[54:48] == parity_data_in[22:16]) && (parity_data_in[22:16] != rx_parity_reg[22:16])) 
+                                        if (parity_data_in[55] == parity_data_in[23] && parity_data_in[23] == rx_parity_reg[23]) error_flag <= 1;
+                                        else rx_dataqueue_3 <= rx_dataqueue_3 ^ (64'b1 << (parity_data_in[21:16] ^ rx_parity_reg[21:16]));                                                                        
+                                    if (queuecorrected < 3'b100 && (parity_data_in[62:56] == parity_data_in[30:24]) && (parity_data_in[30:24] != rx_parity_reg[30:24])) 
+                                        if (parity_data_in[63] == parity_data_in[31] && parity_data_in[13] == rx_parity_reg[31]) error_flag <= 1;
+                                        else rx_dataqueue_4 <= rx_dataqueue_4 ^ (64'b1 << (parity_data_in[29:24] ^ rx_parity_reg[29:24]));                                                                        
+                                end
+                            end
+                            else dequeue_only();
+                        end
+                    end 
                     // 2'b00 and 2'b11 are unused
                     default begin
+                        if (coreresetdone_rxclk) dequeue_only();
                         if (rx_headervalid_in) begin
+                            // When partner gearbox is aligned, it sends polarity check
                             if (rx_header_in == 2'b11 && rx_userdata_in == ~POLARITY_CHECK) begin
                                 rx_polarity <= !rx_polarity;
                                 rx_gearboxslip <= 0;
@@ -273,6 +410,7 @@ module emmetcore(
                             end else if (rx_header_in == 2'b00 && rx_userdata_in == POLARITY_CHECK) begin
                                 rx_gearboxslip <= 0;
                                 partner_coreresetdone_rxclk <= 1;
+                            // If partner gearbox is potentially not aligned, it sends reset signal to stop sending messages
                             end else if (rx_header_in == 2'b11 && rx_userdata_in == ~RESET_SIGNAL) begin
                                 rx_polarity <= !rx_polarity;
                                 rx_gearboxslip <= 0;
@@ -288,18 +426,19 @@ module emmetcore(
                                     partner_coreresetdone_rxclk <= 0;
                                     error_flag <= 1;
                                 end
+                            // All other 00/11 headers are gearbox slips. As such, header bit flips can cause unnecessary resets and interrupt transmission
                             end else begin
                                 rx_gearboxslip <= 1;
                                 gearboxaligned_count <= 0;
                                 coreresetdone_rxclk <= 0;
                                 if (coreresetdone_rxclk || rx_valid) error_flag <= 1;
                             end                    
-                            rx_valid <= 0;
                         end
                     end
                 endcase
             end else error_flag <= 1;
         end
     end
-   
+    
 endmodule
+
