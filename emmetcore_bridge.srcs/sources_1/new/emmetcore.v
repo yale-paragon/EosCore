@@ -25,7 +25,7 @@
 module emmetcore(
     // Reset signal (active low)
     input tx_corereset_n,
-    // Separate, slower clock for initialization
+    // Separate (slower) clock for initialization
     input init_clk,
     
     // Transceiver primitives
@@ -75,7 +75,7 @@ module emmetcore(
     reg partner_coreresetdone_rxclk;    
     reg partner_coreresetdone_txclkmeta; 
     reg partner_coreresetdone_txclkstable; 
-                  
+    
     // Some initialization logic from transceivers must operate on separate clock for timing purposes (too slow for GT clocks)                  
     always @(posedge init_clk) begin
         // Initiate a reset under a set of conditions
@@ -114,14 +114,7 @@ module emmetcore(
     endtask
     
     
-    // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ERROR CORRECTION UTILITES =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-    
-    // Registers to store the hamming code information of last four data blocks. Last 8 bits for most recent data message, previous 8 for penultimate, etc.
-    reg [63:0] tx_parity_reg;
-    // tx_parity_reg is updated every time a data block is sent, rx_parity_reg is updated every time a data message is received
-    reg [63:0] rx_parity_reg;
-    // Counter for ensuring we do not send more than 4 data blocks in a row (caps latency for error correction at cost of throughput)
-    reg [2:0] tx_datablockcount;
+    // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ERROR CORRECTION ENCODER =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
     
     // Calculate all parity bits for a 64-bit message
     task hamming_encode;
@@ -171,6 +164,12 @@ module emmetcore(
     wire sequence_pause_next;
     // Wire for indicating whether or not data can be sent on the next cycle due to sequence pause
     assign sequence_pause_next = ((tx_sequence_out == 7'h1f && increment_sequence) || (tx_sequence_out == 7'h20 && !increment_sequence));
+    
+    // Register to store the hamming code information of last four data blocks. Last 8 bits for most recent data message, previous 8 for penultimate, etc.
+    reg [63:0] tx_parity_reg;
+    // Counter for ensuring we do not send more than 4 data blocks in a row (caps latency for error correction at cost of throughput)
+    reg [2:0] tx_datablockcount;
+    
     
     // TX Processing
     always @(posedge tx_userclk) begin
@@ -271,6 +270,21 @@ module emmetcore(
     reg [2:0] queuecorrected;
     reg queueinit; 
     
+    // Wire which unscrambles error correction messages (useful abstraction)
+    wire [63:0] parity_data_in;
+    assign parity_data_in = (rx_userdata_in ^ PARITY_KEY);
+    // tx_parity_reg is updated every time a data block is sent, rx_parity_reg is updated every time a data message is received
+    reg [63:0] rx_parity_reg;
+    
+    // Need many healthy cycles to confirm gearbox alignment
+    reg [6:0] gearboxaligned_count;
+    
+    // Registers used for determining if partner shuts down. Typically, when a board shuts down, it sends ...101010... or ...111111... across the link
+    reg [1:0] prev_header;
+    reg [63:0] prev_data;
+    reg [9:0] consecutiveidenticalblock_count;
+    
+    
     // When a data block is received, enqueue appropriately and dequeue if a corrected message is available
     task shift_queue;    
         begin
@@ -324,30 +338,20 @@ module emmetcore(
         end
     endtask
     
-    // Wire which unscrambles error correction messages (useful abstraction)
-    wire [63:0] parity_data_in;
-    assign parity_data_in = (rx_userdata_in ^ PARITY_KEY);
-        
-    // Registers used for determining if partner shuts down. Typically, when a board shuts down, it sends ...101010... or ...111111... across the link
-    reg [1:0] prev_header;
-    reg [63:0] prev_data;
-    reg [9:0] consecutiveidenticalblock_count;
-    
-    // Need many healthy cycles to confirm gearbox alignment
-    reg [6:0] gearboxaligned_count;
     
     // RX processing
     always @(posedge rx_userclk) begin  
         if (gt_powergood) begin
             if (rx_headervalid_in == rx_datavalid_in) begin
             
-                // Check to see if partner shut down. If so, wait in reset state
+                // Count consecutive identical blocks to detect unexpected partner shutdown
                 if (rx_datavalid_in) begin
                     prev_header <= rx_header_in;
                     prev_data <= rx_userdata_in;
                     if (prev_header == rx_header_in && prev_data == rx_userdata_in) consecutiveidenticalblock_count <= consecutiveidenticalblock_count + 1;
                     else consecutiveidenticalblock_count <= 0;
                 end
+                // If partner shut down, wait in reset state
                 if (partner_coreresetdone_rxclk && consecutiveidenticalblock_count > 10'b1000000000) begin
                     consecutiveidenticalblock_count <= 0;
                     coreresetdone_rxclk <= 0;
@@ -356,15 +360,16 @@ module emmetcore(
                 end 
             
                 else case (rx_header_in)
-                    // Data header
+                    // Data header received
                     2'b10: begin
                         rx_gearboxslip <= 0;
                         error_flag <= 0;
                         if (rx_headervalid_in && rx_userdata_in != prev_data && !coreresetdone_rxclk) gearboxaligned_count <= gearboxaligned_count +1;
+                        // Add data to the queue if header is valid and reset is done
                         if (rx_headervalid_in && coreresetdone_rxclk) shift_queue();
                         else dequeue_only();
                     end
-                    // Control header
+                    // Control header received
                     2'b01: begin                    
                         rx_gearboxslip <= 0;
                         rx_valid <= 0;
@@ -374,7 +379,7 @@ module emmetcore(
                             gearboxaligned_count <= 0;
                             coreresetdone_rxclk <= 1;
                         end
-                        // Error correction logic
+                        // Error correction logic corrects single bit flips, detects double bit flips in data field
                         if (coreresetdone_rxclk) begin
                             if (rx_headervalid_in && prev_header == 2'b10) begin
                                 rx_valid <= 0;
@@ -402,7 +407,7 @@ module emmetcore(
                     default begin
                         if (coreresetdone_rxclk) dequeue_only();
                         if (rx_headervalid_in) begin
-                            // When partner gearbox is aligned, it sends polarity check
+                            // After partner gearbox is aligned it sends a known message allowing us to check polarity
                             if (rx_header_in == 2'b11 && rx_userdata_in == ~POLARITY_CHECK) begin
                                 rx_polarity <= !rx_polarity;
                                 rx_gearboxslip <= 0;
@@ -410,7 +415,7 @@ module emmetcore(
                             end else if (rx_header_in == 2'b00 && rx_userdata_in == POLARITY_CHECK) begin
                                 rx_gearboxslip <= 0;
                                 partner_coreresetdone_rxclk <= 1;
-                            // If partner gearbox is potentially not aligned, it sends reset signal to stop sending messages
+                            // If partner gearbox is (potentially) not aligned, it sends reset signals so its partner knows to sending messages
                             end else if (rx_header_in == 2'b11 && rx_userdata_in == ~RESET_SIGNAL) begin
                                 rx_polarity <= !rx_polarity;
                                 rx_gearboxslip <= 0;
