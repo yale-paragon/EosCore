@@ -58,8 +58,7 @@ module emmetcore(
     output reg rx_valid,
     output reg error_flag
     );
-         
-         
+
     // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= RESET/INITIALIZATION =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
           
     // Reset for at least 512 cycles to ensure gearbox alignment
@@ -85,7 +84,7 @@ module emmetcore(
     end         
     
     
-    // Note: functionality could be combined to use only 2 of these keys, but I keep them distinct for debugging purposes.
+    // Note: functionality could be combined to use only 2 of these keys, but I keep them distinct for debugging/readability.
     // Initial random seed for LFSR (32x1, 32x0)
     localparam [63:0] LFSR_SEED = 64'hE9734555354A526D;
     // Used to tell partner when gearbox slips (33x1, 31x0)
@@ -124,25 +123,6 @@ module emmetcore(
     // Counter for ensuring we do not send more than 4 data blocks in a row (caps latency for error correction at cost of throughput)
     reg [2:0] tx_datablockcount;
     
-    // Calculate a parity bit for a 64-bit message and store it in two registers for redundancy
-    task calc_parity;
-        input integer step;
-        input reg [63:0] msg;
-        output reg parity;
-        output reg parity_redundant;
-        integer i, j;
-        begin
-            parity = 0;
-            parity_redundant = 0;
-            for (i = step; i < 64; i = i + (step << 1)) begin
-                for (j = i; j < i + step && j < 64; j = j + 1) begin
-                    parity = parity ^ msg[j];
-                    parity_redundant = parity_redundant ^ msg[j];
-                end
-            end
-        end
-    endtask
-    
     // Calculate all parity bits for a 64-bit message
     task hamming_encode;
         input [63:0] message_to_encode;
@@ -151,13 +131,32 @@ module emmetcore(
             parity_register[63:40] <= parity_register[55:32];
             parity_register[31:8] <= parity_register[23:0];
 
-            calc_parity(1, message_to_encode, parity_register[0], parity_register[32]);
-            calc_parity(2, message_to_encode, parity_register[1], parity_register[33]);
-            calc_parity(4, message_to_encode, parity_register[2], parity_register[34]);
-            calc_parity(8, message_to_encode, parity_register[3], parity_register[35]);
-            calc_parity(16, message_to_encode, parity_register[4], parity_register[36]);
-            calc_parity(32, message_to_encode, parity_register[5], parity_register[37]);
+            parity_register[0] <= (message_to_encode[63]) ^ (message_to_encode[61]) ^ (message_to_encode[59]) ^ (message_to_encode[57]) ^ (message_to_encode[55]) ^ (message_to_encode[53]) ^ (message_to_encode[51]) ^ (message_to_encode[49])
+                                  ^ (message_to_encode[47]) ^ (message_to_encode[45]) ^ (message_to_encode[43]) ^ (message_to_encode[41]) ^ (message_to_encode[39]) ^ (message_to_encode[37]) ^ (message_to_encode[35]) ^ (message_to_encode[33])
+                                  ^ (message_to_encode[31]) ^ (message_to_encode[29]) ^ (message_to_encode[27]) ^ (message_to_encode[25]) ^ (message_to_encode[23]) ^ (message_to_encode[21]) ^ (message_to_encode[19]) ^ (message_to_encode[17])
+                                  ^ (message_to_encode[15]) ^ (message_to_encode[13]) ^ (message_to_encode[11]) ^ (message_to_encode[9]) ^ (message_to_encode[7]) ^ (message_to_encode[5]) ^ (message_to_encode[3]) ^ (message_to_encode[1]);
+            parity_register[32] <= (message_to_encode[63]) ^ (message_to_encode[61]) ^ (message_to_encode[59]) ^ (message_to_encode[57]) ^ (message_to_encode[55]) ^ (message_to_encode[53]) ^ (message_to_encode[51]) ^ (message_to_encode[49])
+                                  ^ (message_to_encode[47]) ^ (message_to_encode[45]) ^ (message_to_encode[43]) ^ (message_to_encode[41]) ^ (message_to_encode[39]) ^ (message_to_encode[37]) ^ (message_to_encode[35]) ^ (message_to_encode[33])
+                                  ^ (message_to_encode[31]) ^ (message_to_encode[29]) ^ (message_to_encode[27]) ^ (message_to_encode[25]) ^ (message_to_encode[23]) ^ (message_to_encode[21]) ^ (message_to_encode[19]) ^ (message_to_encode[17])
+                                  ^ (message_to_encode[15]) ^ (message_to_encode[13]) ^ (message_to_encode[11]) ^ (message_to_encode[9]) ^ (message_to_encode[7]) ^ (message_to_encode[5]) ^ (message_to_encode[3]) ^ (message_to_encode[1]);      
 
+            parity_register[1] <= (^message_to_encode[63:62]) ^ (^message_to_encode[59:58]) ^ (^message_to_encode[55:54]) ^ (^message_to_encode[51:50]) ^ (^message_to_encode[47:46]) ^ (^message_to_encode[43:42]) ^ (^message_to_encode[39:38]) ^ (^message_to_encode[35:34])
+                                  ^ (^message_to_encode[31:30]) ^ (^message_to_encode[27:26]) ^ (^message_to_encode[23:22]) ^ (^message_to_encode[19:18]) ^ (^message_to_encode[15:14]) ^ (^message_to_encode[11:10]) ^ (^message_to_encode[7:6]) ^ (^message_to_encode[3:2]);
+            parity_register[33] <= (^message_to_encode[63:62]) ^ (^message_to_encode[59:58]) ^ (^message_to_encode[55:54]) ^ (^message_to_encode[51:50]) ^ (^message_to_encode[47:46]) ^ (^message_to_encode[43:42]) ^ (^message_to_encode[39:38]) ^ (^message_to_encode[35:34])
+                                  ^ (^message_to_encode[31:30]) ^ (^message_to_encode[27:26]) ^ (^message_to_encode[23:22]) ^ (^message_to_encode[19:18]) ^ (^message_to_encode[15:14]) ^ (^message_to_encode[11:10]) ^ (^message_to_encode[7:6]) ^ (^message_to_encode[3:2]);
+
+            parity_register[2] <= (^message_to_encode[63:60]) ^ (^message_to_encode[55:52]) ^ (^message_to_encode[47:44]) ^ (^message_to_encode[39:36]) ^ (^message_to_encode[31:28]) ^ (^message_to_encode[23:20]) ^ (^message_to_encode[15:12]) ^ (^message_to_encode[7:4]);
+            parity_register[34] <= (^message_to_encode[63:60]) ^ (^message_to_encode[55:52]) ^ (^message_to_encode[47:44]) ^ (^message_to_encode[39:36]) ^ (^message_to_encode[31:28]) ^ (^message_to_encode[23:20]) ^ (^message_to_encode[15:12]) ^ (^message_to_encode[7:4]);
+
+            parity_register[3] <= (^message_to_encode[63:56]) ^ (^message_to_encode[47:40]) ^ (^message_to_encode[31:24]) ^ (^message_to_encode[15:8]);
+            parity_register[35] <= (^message_to_encode[63:56]) ^ (^message_to_encode[47:40]) ^ (^message_to_encode[31:24]) ^ (^message_to_encode[15:8]);
+
+            parity_register[4] <= (^message_to_encode[63:48]) ^ (^message_to_encode[31:16]);
+            parity_register[36] <= (^message_to_encode[63:48]) ^ (^message_to_encode[31:16]);
+
+            parity_register[5] <= ^message_to_encode[63:32];
+            parity_register[37] <= ^message_to_encode[63:32];
+            
             parity_register[6] <= message_to_encode[0];
             parity_register[7] <= ^message_to_encode;
             parity_register[38] <= message_to_encode[0];
@@ -220,7 +219,7 @@ module emmetcore(
             end
             tx_parity_reg <= 64'b0;
             tx_datablockcount <= 3'b0;       
-        end 
+        end  
         
         else begin
             // Prepare/synchronize reset registers
@@ -230,12 +229,12 @@ module emmetcore(
             // Streaming state
             if (gt_powergood) begin
                 // Cannot accept data during sequence pause
-                if (tx_sequence_out == 7'h1f || (tx_datablockcount == 3'b11 && tx_ready && tx_valid)) tx_ready <= 0;
+                if (tx_sequence_out == 7'h1f || (tx_datablockcount == 3'b11 && tx_ready && tx_valid) || (tx_datablockcount == 3'b100 && sequence_pause_next)) tx_ready <= 0;
                 else tx_ready <= 1;
                 
                 // Handshake with user program, scramble and pass data to TX lane, update bitwise parity counts
                 if (tx_valid && tx_ready) begin
-                    tx_userdata_out <= tx_data ^ SCRAMBLE_KEY;
+                    tx_userdata_out <= (tx_data ^ SCRAMBLE_KEY) ^ ((64'b1 << 32) << tx_data[3:0]);
                     tx_header_out <= 2'b10;
                     hamming_encode(tx_data, tx_parity_reg);
                     tx_datablockcount <= tx_datablockcount + 1;
@@ -381,10 +380,9 @@ module emmetcore(
                                 rx_valid <= 0;
                                 queuecorrected <= queuesize;
                                 if (parity_data_in != rx_parity_reg) begin
-                                    // Think there is a bug here with queuesize or queuecorrected. Errors are not getting corrected as frequently as they should be
                                     if (((queuesize - queuecorrected) > 3'b0) && (parity_data_in[38:32] == parity_data_in[6:0]) && (parity_data_in[6:0] != rx_parity_reg[6:0])) begin
                                         if (parity_data_in[39] == parity_data_in[7] && parity_data_in[7] == rx_parity_reg[7]) error_flag <= 1;
-                                        else rx_dataqueue_1 <= rx_dataqueue_1 ^ (64'b1 << (parity_data_in[5:0] ^ rx_parity_reg[5:0]));
+                                        else begin rx_dataqueue_1 <= rx_dataqueue_1 ^ (64'b1 << (parity_data_in[5:0] ^ rx_parity_reg[5:0])); end
                                     end if (((queuesize - queuecorrected) > 3'b1) && (parity_data_in[46:40] == parity_data_in[14:8]) && (parity_data_in[14:8] != rx_parity_reg[14:8])) begin
                                         if (parity_data_in[47] == parity_data_in[15] && parity_data_in[15] == rx_parity_reg[15]) error_flag <= 1;
                                         else rx_dataqueue_2 <= rx_dataqueue_2 ^ (64'b1 << (parity_data_in[13:8] ^ rx_parity_reg[13:8]));                                                                        
@@ -392,9 +390,9 @@ module emmetcore(
                                         if (parity_data_in[55] == parity_data_in[23] && parity_data_in[23] == rx_parity_reg[23]) error_flag <= 1;
                                         else rx_dataqueue_3 <= rx_dataqueue_3 ^ (64'b1 << (parity_data_in[21:16] ^ rx_parity_reg[21:16]));                                                                        
                                     end if (((queuesize - queuecorrected) > 3'b11) && (parity_data_in[62:56] == parity_data_in[30:24]) && (parity_data_in[30:24] != rx_parity_reg[30:24])) begin
-                                        if (parity_data_in[63] == parity_data_in[31] && parity_data_in[13] == rx_parity_reg[31]) error_flag <= 1;
+                                        if (parity_data_in[63] == parity_data_in[31] && parity_data_in[31] == rx_parity_reg[31]) error_flag <= 1;
                                         else rx_dataqueue_4 <= rx_dataqueue_4 ^ (64'b1 << (parity_data_in[29:24] ^ rx_parity_reg[29:24]));                                                                        
-                                    end                                                      
+                                    end
                                 end
                             end
                             else dequeue_only();
@@ -443,4 +441,3 @@ module emmetcore(
     end
     
 endmodule
-
