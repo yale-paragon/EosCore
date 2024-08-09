@@ -234,7 +234,7 @@ module emmetcore(
                 
                 // Handshake with user program, scramble and pass data to TX lane, update bitwise parity counts
                 if (tx_valid && tx_ready) begin
-                    tx_userdata_out <= (tx_data ^ SCRAMBLE_KEY) ^ ((64'b1 << 32) << tx_data[3:0]);
+                    tx_userdata_out <= tx_data ^ SCRAMBLE_KEY;
                     tx_header_out <= 2'b10;
                     hamming_encode(tx_data, tx_parity_reg);
                     tx_datablockcount <= tx_datablockcount + 1;
