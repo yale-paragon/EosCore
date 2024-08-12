@@ -242,7 +242,7 @@ module emmetcore_32b(
     assign rx_data_unscrambled = rx_userdata_in ^ SCRAMBLE_KEY;
     
     wire [1:0] majority_header;
-    assign majority_header = (rx_data_unscrambled[63:62] & rx_data_unscrambled[61:60]) | (rx_header_in & rx_data_unscrambled[63:62]) | (rx_header_in & rx_data_unscrambled[61:60]);
+    assign majority_header = coreresetdone_rxclk ? ((rx_data_unscrambled[63:62] & rx_data_unscrambled[61:60]) | (rx_header_in & rx_data_unscrambled[63:62]) | (rx_header_in & rx_data_unscrambled[61:60])) : rx_header_in;
     
     wire [5:0] rx_parity_reg;
     assign rx_parity_reg[5] = rx_data_unscrambled[0];
