@@ -239,7 +239,7 @@ module emmetcore(
                     tx_datablockcount <= tx_datablockcount + 1;
                 end else begin
                     // Bitwise parity of data from last set of cycles is scrambled and sent as control block on sequence 7'h00 and between data blocks
-                    if (!sequence_pause_next && (tx_header_out == 2'b10 || tx_datablockcount == 3'b100)) begin
+                    if (!sequence_pause_next && (tx_header_out == 2'b10 || tx_datablockcount != 3'b000)) begin
                         tx_userdata_out <= tx_parity_reg ^ PARITY_KEY;
                         tx_header_out <= 2'b01;
                         tx_datablockcount <= 3'b0;       
