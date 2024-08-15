@@ -329,7 +329,7 @@ module emmetcore_32b(
                                 end
                             end else if (majority_header == 2'b00 && rx_data_unscrambled[31:0] == RESET_SIGNAL) begin
                                 rx_gearboxslip <= 0;
-                                if (partner_coreresetdone_rxclk) begin
+                                if (coreresetdone_rxclk) begin
                                     coreresetdone_rxclk <= 0;
                                     partner_coreresetdone_rxclk <= 0;
                                     error_flag <= 1;
