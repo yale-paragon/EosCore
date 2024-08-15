@@ -426,7 +426,7 @@ module emmetcore(
                                 end
                             end else if (rx_header_in == 2'b00 && rx_userdata_in == RESET_SIGNAL) begin
                                 rx_gearboxslip <= 0;
-                                if (partner_coreresetdone_rxclk) begin
+                                if (coreresetdone_rxclk) begin
                                     coreresetdone_rxclk <= 0;
                                     partner_coreresetdone_rxclk <= 0;
                                     error_flag <= 1;
