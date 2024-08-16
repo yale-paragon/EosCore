@@ -219,7 +219,7 @@ module emmetcore(
                     cycle_lfsr();
                 end
             end
-            tx_parity_reg <= 64'b0;
+            tx_parity_reg <= 64'h8080808080808080;
             tx_datablockcount <= 3'b0;      
         end  
        
@@ -271,6 +271,7 @@ module emmetcore(
     reg [63:0] rx_dataqueue_4;
     reg [2:0] queuesize;
     reg [2:0] queuecorrected;
+    reg [3:0] queuediscard;
     reg queueinit;
    
     // Wire which unscrambles error correction messages (useful abstraction)
@@ -310,8 +311,9 @@ module emmetcore(
                         end else rx_data <= rx_dataqueue_3;
                     end else rx_data <= rx_dataqueue_2;
                 end else rx_data <= rx_dataqueue_1;
-                rx_valid <= 1;
+                rx_valid <= (queuecorrected > 3'b0 && !queuediscard[3]) ? 1 : 0;
                 if (queuecorrected > 3'b0) queuecorrected <= queuecorrected - 1;
+                queuediscard <= queuediscard << 1;
                
             end else begin
                 queuesize <= queuesize +1;
@@ -334,7 +336,8 @@ module emmetcore(
                     3'b010: rx_data <= rx_dataqueue_2;
                     3'b001: rx_data <= rx_dataqueue_1;
                 endcase
-                rx_valid <= 1;
+                rx_valid <= (queuecorrected > 3'b0 && !queuediscard[3]) ? 1 : 0;
+                queuediscard <= queuediscard << 1;
                 queuecorrected <= queuecorrected - 1;
             end
             else rx_valid <= 0;
@@ -371,7 +374,7 @@ module emmetcore(
                         // Add data to the queue if header is valid and reset is done
                         if (rx_headervalid_in && coreresetdone_rxclk) shift_queue();
                         else dequeue_only();
-                        error_flag <= (queuecorrected > 3'b0) ? 0 : 1;
+                        error_flag <= (queuecorrected == 3'b0 && queuesize == 3'b100 && !queuediscard[3]) ? 1 : 0;
                     end
                     // Control header received
                     2'b01: begin                    
@@ -390,17 +393,21 @@ module emmetcore(
                                 queuecorrected <= queuesize;
                                 if (parity_data_in != rx_parity_reg) begin
                                     if (((queuesize - queuecorrected) > 3'b0) && (parity_data_in[38:32] == parity_data_in[6:0]) && (parity_data_in[6:0] != rx_parity_reg[6:0])) begin
-                                        if (parity_data_in[39] == parity_data_in[7] && parity_data_in[7] == rx_parity_reg[7]) error_flag <= 1;
-                                        else begin rx_dataqueue_1 <= rx_dataqueue_1 ^ (64'b1 << (parity_data_in[5:0] ^ rx_parity_reg[5:0])); error_flag <= 0; end
+                                        if (parity_data_in[39:32] == parity_data_in[7:0] && parity_data_in[7:0] == 8'b10000000) queuediscard[0] <= 1;
+                                        else if (parity_data_in[39] == parity_data_in[7] && parity_data_in[7] == rx_parity_reg[7]) error_flag <= 1;
+                                        else begin rx_dataqueue_1 <= rx_dataqueue_1 ^ (64'b1 << (parity_data_in[5:0] ^ rx_parity_reg[5:0])); end
                                     end if (((queuesize - queuecorrected) > 3'b1) && (parity_data_in[46:40] == parity_data_in[14:8]) && (parity_data_in[14:8] != rx_parity_reg[14:8])) begin
-                                        if (parity_data_in[47] == parity_data_in[15] && parity_data_in[15] == rx_parity_reg[15]) error_flag <= 1;
-                                        else begin rx_dataqueue_2 <= rx_dataqueue_2 ^ (64'b1 << (parity_data_in[13:8] ^ rx_parity_reg[13:8])); error_flag <= 0; end                                                                        
+                                        if (parity_data_in[47:40] == parity_data_in[15:8] && parity_data_in[15:8] == 8'b10000000) queuediscard[1] <= 1;
+                                        else if (parity_data_in[47] == parity_data_in[15] && parity_data_in[15] == rx_parity_reg[15]) error_flag <= 1;
+                                        else begin rx_dataqueue_2 <= rx_dataqueue_2 ^ (64'b1 << (parity_data_in[13:8] ^ rx_parity_reg[13:8])); end                                                                        
                                     end if (((queuesize - queuecorrected) > 3'b10) && (parity_data_in[54:48] == parity_data_in[22:16]) && (parity_data_in[22:16] != rx_parity_reg[22:16])) begin
-                                        if (parity_data_in[55] == parity_data_in[23] && parity_data_in[23] == rx_parity_reg[23]) error_flag <= 1;
-                                        else begin rx_dataqueue_3 <= rx_dataqueue_3 ^ (64'b1 << (parity_data_in[21:16] ^ rx_parity_reg[21:16])); error_flag <= 0; end                                                                     
+                                        if (parity_data_in[55:48] == parity_data_in[23:16] && parity_data_in[23:16] == 8'b10000000) queuediscard[2] <= 1;
+                                        else if (parity_data_in[55] == parity_data_in[23] && parity_data_in[23] == rx_parity_reg[23]) error_flag <= 1;
+                                        else begin rx_dataqueue_3 <= rx_dataqueue_3 ^ (64'b1 << (parity_data_in[21:16] ^ rx_parity_reg[21:16]));end                                                                     
                                     end if (((queuesize - queuecorrected) > 3'b11) && (parity_data_in[62:56] == parity_data_in[30:24]) && (parity_data_in[30:24] != rx_parity_reg[30:24])) begin
-                                        if (parity_data_in[63] == parity_data_in[31] && parity_data_in[31] == rx_parity_reg[31]) error_flag <= 1;
-                                        else begin rx_dataqueue_4 <= rx_dataqueue_4 ^ (64'b1 << (parity_data_in[29:24] ^ rx_parity_reg[29:24])); error_flag <= 0; end                                                                        
+                                        if (parity_data_in[63:56] == parity_data_in[31:24] && parity_data_in[31:24] == 8'b10000000) queuediscard[3] <= 1;
+                                        else if (parity_data_in[63] == parity_data_in[31] && parity_data_in[31] == rx_parity_reg[31]) error_flag <= 1;
+                                        else begin rx_dataqueue_4 <= rx_dataqueue_4 ^ (64'b1 << (parity_data_in[29:24] ^ rx_parity_reg[29:24])); end                                                                        
                                     end
                                 end else begin
                                     error_flag <= 0;
