@@ -374,7 +374,7 @@ module emmetcore(
                         // Add data to the queue if header is valid and reset is done
                         if (rx_headervalid_in && coreresetdone_rxclk) shift_queue();
                         else dequeue_only();
-                        error_flag <= (queuecorrected == 3'b0 && queuesize == 3'b100 && !queuediscard[3]) ? 1 : 0;
+                        error_flag <= (queuecorrected == 3'b0 && queuesize > 3'b0 && !queuediscard[3]) ? 1 : 0;
                     end
                     // Control header received
                     2'b01: begin                    
