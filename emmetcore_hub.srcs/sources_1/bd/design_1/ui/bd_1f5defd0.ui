@@ -1,0 +1,190 @@
+{
+   "ActiveEmotionalView":"Default View",
+   "Default View_ScaleFactor":"0.764027",
+   "Default View_TopLeft":"2864,-510",
+   "ExpandedHierarchyInLayout":"",
+   "guistr":"# # String gsaved with Nlview 7.5.8 2022-09-21 7111 VDI=41 GEI=38 GUI=JA:10.0 TLS
+#  -string -flagsOSRD
+preplace port GT_Serial_0 -pg 1 -lvl 13 -x 6170 -y 480 -defaultsOSRD
+preplace port CLK_IN_D_0 -pg 1 -lvl 0 -x -60 -y 1170 -defaultsOSRD
+preplace port CLK_IN1_D_0 -pg 1 -lvl 0 -x -60 -y 1290 -defaultsOSRD
+preplace port CLK_IN1_D_1 -pg 1 -lvl 0 -x -60 -y 130 -defaultsOSRD
+preplace inst gt_bridge_ip_0 -pg 1 -lvl 9 -x 4730 -y 1150 -defaultsOSRD
+preplace inst gt_quad_base_0 -pg 1 -lvl 10 -x 5310 -y 680 -defaultsOSRD
+preplace inst bufg_gt_0 -pg 1 -lvl 9 -x 4730 -y 200 -defaultsOSRD
+preplace inst bufg_gt_1 -pg 1 -lvl 9 -x 4730 -y 400 -defaultsOSRD
+preplace inst clk_wizard_0 -pg 1 -lvl 7 -x 3200 -y 1840 -defaultsOSRD
+preplace inst util_ds_buf_0 -pg 1 -lvl 7 -x 3200 -y 1730 -defaultsOSRD
+preplace inst xlconcat_0 -pg 1 -lvl 11 -x 5750 -y 550 -defaultsOSRD
+preplace inst xlconcat_1 -pg 1 -lvl 11 -x 5750 -y 670 -defaultsOSRD
+preplace inst xlconcat_2 -pg 1 -lvl 11 -x 5750 -y 810 -defaultsOSRD
+preplace inst util_reduced_logic_0 -pg 1 -lvl 12 -x 5990 -y 550 -defaultsOSRD
+preplace inst util_reduced_logic_1 -pg 1 -lvl 12 -x 5990 -y 810 -defaultsOSRD
+preplace inst util_reduced_logic_2 -pg 1 -lvl 12 -x 5990 -y 670 -defaultsOSRD
+preplace inst xlconcat_3 -pg 1 -lvl 11 -x 5750 -y 970 -defaultsOSRD
+preplace inst emmetcore_0 -pg 1 -lvl 7 -x 3200 -y 340 -defaultsOSRD
+preplace inst axis_vio_0 -pg 1 -lvl 2 -x 850 -y 120 -defaultsOSRD
+preplace inst clk_wizard_1 -pg 1 -lvl 1 -x 620 -y 130 -defaultsOSRD
+preplace inst emb_fifo_gen_0 -pg 1 -lvl 6 -x 2540 -y 360 -defaultsOSRD
+preplace inst util_vector_logic_1 -pg 1 -lvl 5 -x 1650 -y 340 -defaultsOSRD
+preplace inst axis_ila_0 -pg 1 -lvl 9 -x 4730 -y -210 -defaultsOSRD
+preplace inst versal_cips_0 -pg 1 -lvl 3 -x 1080 -y 660 -defaultsOSRD
+preplace inst root_hub_core_0 -pg 1 -lvl 7 -x 3200 -y -40 -defaultsOSRD
+preplace inst axis_vio_1 -pg 1 -lvl 6 -x 2540 -y 40 -defaultsOSRD
+preplace inst axis_ila_1 -pg 1 -lvl 8 -x 3990 -y -40 -defaultsOSRD
+preplace inst emb_fifo_gen_1 -pg 1 -lvl 8 -x 3990 -y 330 -defaultsOSRD
+preplace inst util_vector_logic_0 -pg 1 -lvl 4 -x 1350 -y 100 -defaultsOSRD
+preplace inst emmetcore_1 -pg 1 -lvl 7 -x 3200 -y 750 -defaultsOSRD
+preplace inst emb_fifo_gen_2 -pg 1 -lvl 6 -x 2540 -y 750 -defaultsOSRD
+preplace inst emb_fifo_gen_3 -pg 1 -lvl 8 -x 3990 -y 720 -defaultsOSRD
+preplace inst util_vector_logic_2 -pg 1 -lvl 5 -x 1650 -y 670 -defaultsOSRD
+preplace inst emmetcore_2 -pg 1 -lvl 7 -x 3200 -y 1120 -defaultsOSRD
+preplace inst emb_fifo_gen_4 -pg 1 -lvl 6 -x 2540 -y 1100 -defaultsOSRD
+preplace inst emb_fifo_gen_5 -pg 1 -lvl 8 -x 3990 -y 1160 -defaultsOSRD
+preplace inst util_vector_logic_3 -pg 1 -lvl 5 -x 1650 -y 1020 -defaultsOSRD
+preplace inst emmetcore_3 -pg 1 -lvl 7 -x 3200 -y 1460 -defaultsOSRD
+preplace inst emb_fifo_gen_6 -pg 1 -lvl 6 -x 2540 -y 1490 -defaultsOSRD
+preplace inst emb_fifo_gen_7 -pg 1 -lvl 8 -x 3990 -y 1520 -defaultsOSRD
+preplace inst util_vector_logic_4 -pg 1 -lvl 5 -x 1650 -y 1470 -defaultsOSRD
+preplace netloc axis_vio_0_probe_out0 1 2 5 N 120 1200 40 N 40 2260 130 2800
+preplace netloc axis_vio_1_probe_out0 1 6 1 2710 -140n
+preplace netloc axis_vio_1_probe_out1 1 6 1 2780 -120n
+preplace netloc axis_vio_1_probe_out2 1 6 1 2770 -160n
+preplace netloc bufg_gt_0_usrclk 1 5 5 2350 540 2840 -360 N -360 4270 20 5050
+preplace netloc bufg_gt_1_usrclk 1 6 4 2960 520 3630 530 4380 90 5000
+preplace netloc clk_wizard_0_clk_out1 1 6 4 2870 1640 3790 1340 4360 70 5020J
+preplace netloc clk_wizard_1_clk_out1 1 1 7 740 30 N 30 N 30 N 30 2250 -200 2770 -380 3650
+preplace netloc emb_fifo_gen_0_dout 1 5 4 2360 520 2760 -280 N -280 N
+preplace netloc emb_fifo_gen_0_empty 1 4 2 1500 400 1800
+preplace netloc emb_fifo_gen_0_full 1 5 2 2370 -100 NJ
+preplace netloc emb_fifo_gen_1_dout 1 6 2 3000 -320 3740
+preplace netloc emb_fifo_gen_1_empty 1 6 2 2950 -300 3490
+preplace netloc emb_fifo_gen_2_dout 1 5 2 2370 590 2810J
+preplace netloc emb_fifo_gen_2_empty 1 4 2 1500 750 NJ
+preplace netloc emb_fifo_gen_2_full 1 5 2 2320 -60 2870
+preplace netloc emb_fifo_gen_3_dout 1 6 2 2980 -290 3720
+preplace netloc emb_fifo_gen_3_empty 1 6 2 2940 -270 3710J
+preplace netloc emmetcore_0_error_flag 1 7 2 3500 -300 N
+preplace netloc emmetcore_0_rx_data 1 7 2 3480 -200 4410
+preplace netloc emmetcore_0_rx_gearboxslip 1 7 2 3690J 490 4440
+preplace netloc emmetcore_0_rx_polarity 1 7 2 3660 520 4430
+preplace netloc emmetcore_0_rx_valid 1 7 2 3540 -190 4400
+preplace netloc emmetcore_0_tx_header_out 1 7 2 3700J 500 4460
+preplace netloc emmetcore_0_tx_ready 1 5 4 2280 -500 N -500 3470 -340 N
+preplace netloc emmetcore_0_tx_sequence_out 1 7 2 3470J 510 4470
+preplace netloc emmetcore_0_tx_userdata_out 1 7 2 3510J 170 4450
+preplace netloc emmetcore_1_rx_data 1 7 1 3610 650n
+preplace netloc emmetcore_1_rx_gearboxslip 1 7 2 3530 950 4220J
+preplace netloc emmetcore_1_rx_polarity 1 7 2 3520 960 4190J
+preplace netloc emmetcore_1_rx_valid 1 7 1 3640 670n
+preplace netloc emmetcore_1_tx_header_out 1 7 2 3580J 880 4190
+preplace netloc emmetcore_1_tx_ready 1 5 3 2310 1980 NJ 1980 3420
+preplace netloc emmetcore_1_tx_sequence_out 1 7 2 3560J 890 4200
+preplace netloc emmetcore_1_tx_userdata_out 1 7 2 3600J 560 4350
+preplace netloc gt_bridge_ip_0_ch0_rxdata_ext 1 6 3 2820 -490 N -490 4420
+preplace netloc gt_bridge_ip_0_ch0_rxdatavalid_ext 1 6 3 2830 -480 NJ -480 4390
+preplace netloc gt_bridge_ip_0_ch0_rxheadervalid_ext 1 6 3 2880 -470 NJ -470 4370
+preplace netloc gt_bridge_ip_0_ch1_rxdata_ext 1 6 3 2900 -460 NJ -460 4180
+preplace netloc gt_bridge_ip_0_ch1_rxdatavalid_ext 1 6 3 2860 -440 NJ -440 4340
+preplace netloc gt_bridge_ip_0_ch1_rxheader_ext 1 6 3 2910 -420 NJ -420 4170
+preplace netloc gt_bridge_ip_0_ch1_rxheadervalid_ext 1 6 3 2980 570 3550J 1000 4160
+preplace netloc gt_bridge_ip_0_gt_ilo_reset 1 9 1 5080 790n
+preplace netloc gt_bridge_ip_0_gt_pll_reset 1 9 1 5070 590n
+preplace netloc gt_bridge_ip_0_pcie_rstb 1 9 1 5090 670n
+preplace netloc gt_bridge_ip_0_rx_resetdone_out 1 6 4 2890 -430 NJ -430 N -430 4930
+preplace netloc gt_bridge_ip_0_tx_resetdone_out 1 6 4 2920 -410 NJ -410 4190 -420 4940
+preplace netloc gt_quad_base_0_ch0_iloresetdone 1 10 1 5620 640n
+preplace netloc gt_quad_base_0_ch0_phystatus 1 10 1 5580 720n
+preplace netloc gt_quad_base_0_ch0_rxoutclk 1 8 3 4480 -450 NJ -450 5540
+preplace netloc gt_quad_base_0_ch0_txoutclk 1 8 3 4500 -440 NJ -440 5530
+preplace netloc gt_quad_base_0_ch1_iloresetdone 1 10 1 5610 660n
+preplace netloc gt_quad_base_0_ch1_phystatus 1 10 1 5570 740n
+preplace netloc gt_quad_base_0_ch2_iloresetdone 1 10 1 5600 680n
+preplace netloc gt_quad_base_0_ch2_phystatus 1 10 1 5560 760n
+preplace netloc gt_quad_base_0_ch3_iloresetdone 1 10 1 5590 700n
+preplace netloc gt_quad_base_0_ch3_phystatus 1 10 1 5550 780n
+preplace netloc gt_quad_base_0_gtpowergood 1 6 5 2930 -350 N -350 4250 -460 NJ -460 5620
+preplace netloc gt_quad_base_0_hsclk0_lcplllock 1 10 1 N 540
+preplace netloc gt_quad_base_0_hsclk0_rplllock 1 10 1 5640 580n
+preplace netloc gt_quad_base_0_hsclk1_lcplllock 1 10 1 N 560
+preplace netloc gt_quad_base_0_hsclk1_rplllock 1 10 1 5630 600n
+preplace netloc inverter_0_rx_header_out 1 6 3 2820 1910 NJ 1910 4260
+preplace netloc root_hub_core_0_rx_0_rd_en 1 5 3 2310 -370 NJ -370 3780
+preplace netloc root_hub_core_0_rx_1_rd_en 1 7 1 3730 -80n
+preplace netloc root_hub_core_0_rx_2_rd_en 1 7 1 3670 -20n
+preplace netloc root_hub_core_0_tx_0_dout 1 5 3 2330 -340 NJ -340 3460
+preplace netloc root_hub_core_0_tx_0_wr_en 1 5 3 2360 -310 NJ -310 3750
+preplace netloc root_hub_core_0_tx_1_dout 1 5 3 2350 -330 NJ -330 3760
+preplace netloc root_hub_core_0_tx_1_wr_en 1 5 3 2290 -400 NJ -400 3800
+preplace netloc root_hub_core_0_tx_2_dout 1 5 3 2300 -390 NJ -390 3770
+preplace netloc root_hub_core_0_tx_2_wr_en 1 5 3 2270 -450 NJ -450 3790
+preplace netloc util_ds_buf_0_IBUF_OUT 1 7 3 3680J 160 4190 80 5010
+preplace netloc util_reduced_logic_0_Res 1 8 5 4510 40 NJ 40 NJ 40 NJ 40 6150
+preplace netloc util_reduced_logic_1_Res 1 8 5 4520 50 NJ 50 NJ 50 NJ 50 6140
+preplace netloc util_reduced_logic_2_Res 1 8 5 4530 60 NJ 60 NJ 60 NJ 60 6130
+preplace netloc util_vector_logic_0_Res 1 4 3 1500 -180 N -180 NJ
+preplace netloc util_vector_logic_1_Res 1 5 4 1810 530 2790 -260 N -260 N
+preplace netloc util_vector_logic_2_Res 1 5 2 1800J 580 2830
+preplace netloc xlconcat_0_dout 1 11 1 N 550
+preplace netloc xlconcat_1_dout 1 11 1 N 670
+preplace netloc xlconcat_2_dout 1 11 1 N 810
+preplace netloc xlconcat_3_dout 1 8 4 4490 30 NJ 30 NJ 30 5850
+preplace netloc emb_fifo_gen_4_dout 1 5 2 2360 1270 2850
+preplace netloc emmetcore_2_tx_ready 1 5 3 2340 1660 NJ 1660 3400
+preplace netloc emb_fifo_gen_4_empty 1 4 2 1500 1110 NJ
+preplace netloc util_vector_logic_3_Res 1 5 2 2270J 930 2710
+preplace netloc emmetcore_2_tx_userdata_out 1 7 2 3670J 990 4300
+preplace netloc emmetcore_2_tx_header_out 1 7 2 3660J 970 4280
+preplace netloc emmetcore_2_tx_sequence_out 1 7 2 3730J 980 4320
+preplace netloc gt_bridge_ip_0_ch2_rxdata_ext 1 6 3 2990 930 NJ 930 4210
+preplace netloc gt_bridge_ip_0_ch2_rxdatavalid_ext 1 6 3 3000 940 NJ 940 4200J
+preplace netloc gt_bridge_ip_0_ch2_rxheader_ext 1 6 3 2860 1650 3490J 1680 4400J
+preplace netloc gt_bridge_ip_0_ch2_rxheadervalid_ext 1 6 3 2900 1990 NJ 1990 4420J
+preplace netloc emmetcore_2_rx_gearboxslip 1 7 2 3490 1320 4370J
+preplace netloc emmetcore_2_rx_polarity 1 7 2 3470 1330 4410J
+preplace netloc emmetcore_2_rx_data 1 7 1 3790 1090n
+preplace netloc emmetcore_2_rx_valid 1 7 1 3800 1110n
+preplace netloc emb_fifo_gen_4_full 1 5 2 2340 -50 2850J
+preplace netloc root_hub_core_0_tx_3_dout 1 5 3 2300 2010 NJ 2010 3460
+preplace netloc root_hub_core_0_tx_3_wr_en 1 5 3 2320 1950 NJ 1950 3450
+preplace netloc emb_fifo_gen_5_empty 1 6 2 3000 530 3590
+preplace netloc emb_fifo_gen_5_dout 1 6 2 2950 560 3540
+preplace netloc root_hub_core_0_rx_3_rd_en 1 7 1 3620 40n
+preplace netloc emb_fifo_gen_6_full 1 5 2 2330 140 2810J
+preplace netloc root_hub_core_0_tx_4_dout 1 5 3 2330 1920 NJ 1920 3440
+preplace netloc root_hub_core_0_tx_4_wr_en 1 5 3 2360 1900 NJ 1900 3430
+preplace netloc emb_fifo_gen_6_empty 1 4 2 1500 1530 2290
+preplace netloc util_vector_logic_4_Res 1 5 2 2270 1320 2710J
+preplace netloc emb_fifo_gen_6_dout 1 5 2 2370 1310 2730J
+preplace netloc emmetcore_3_tx_ready 1 5 3 2370 2000 NJ 2000 3410
+preplace netloc emmetcore_3_tx_userdata_out 1 7 2 3740 920 4310J
+preplace netloc emmetcore_3_tx_header_out 1 7 2 3710J 900 4290
+preplace netloc emmetcore_3_tx_sequence_out 1 7 2 3760J 910 4330
+preplace netloc gt_bridge_ip_0_ch3_rxdata_ext 1 6 3 2970 1960 NJ 1960 4430
+preplace netloc gt_bridge_ip_0_ch3_rxdatavalid_ext 1 6 3 2950 1970 NJ 1970 4460
+preplace netloc gt_bridge_ip_0_ch3_rxheader_ext 1 6 3 3000 1930 NJ 1930 4450
+preplace netloc gt_bridge_ip_0_ch3_rxheadervalid_ext 1 6 3 2990 1940 NJ 1940 4470
+preplace netloc emmetcore_3_rx_gearboxslip 1 7 2 3470J 1350 4190
+preplace netloc emmetcore_3_rx_polarity 1 7 2 3780J 1360 4160
+preplace netloc emmetcore_3_rx_data 1 7 1 3800 1440n
+preplace netloc emmetcore_3_rx_valid 1 7 1 3480 1460n
+preplace netloc emb_fifo_gen_7_empty 1 6 2 2970 550 3500
+preplace netloc emb_fifo_gen_7_dout 1 6 2 2990 540 3510
+preplace netloc root_hub_core_0_rx_4_rd_en 1 7 1 3570 100n
+preplace netloc CLK_IN1_D_0_1 1 0 7 N 1290 N 1290 N 1290 N 1290 N 1290 N 1290 2720
+preplace netloc CLK_IN1_D_1_1 1 0 1 N 130
+preplace netloc CLK_IN_D_0_1 1 0 7 N 1170 N 1170 N 1170 N 1170 N 1170 1800 1280 2740
+preplace netloc gt_bridge_ip_0_GT_RX0 1 9 1 4990 370n
+preplace netloc gt_bridge_ip_0_GT_RX1 1 9 1 5030 390n
+preplace netloc gt_bridge_ip_0_GT_TX0 1 9 1 4950 290n
+preplace netloc gt_bridge_ip_0_GT_TX1 1 9 1 4960 310n
+preplace netloc gt_quad_base_0_GT_Serial 1 10 3 5640 480 N 480 N
+preplace netloc gt_bridge_ip_0_GT_TX2 1 9 1 4970 330n
+preplace netloc gt_bridge_ip_0_GT_RX2 1 9 1 5040 410n
+preplace netloc gt_bridge_ip_0_GT_TX3 1 9 1 4980 350n
+preplace netloc gt_bridge_ip_0_GT_RX3 1 9 1 5060 430n
+levelinfo -pg 1 -60 620 850 1080 1350 1650 2540 3200 3990 4730 5310 5750 5990 6170
+pagesize -pg 1 -db -bbox -sgen -210 -510 6310 3770
+"
+}
+0
