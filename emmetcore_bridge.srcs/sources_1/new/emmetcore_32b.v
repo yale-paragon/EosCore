@@ -136,6 +136,7 @@ module emmetcore_32b(
             destination[53] <= message[0] ^ scrambler[53];
             destination[59] <= message[0] ^ scrambler[59];
 
+            // Super simple 16-bit checksum. In the future, hope to implement Reed-Solomon
             destination[47:32] <= (message[31:16] + message[15:0]) ^ scrambler[47:32];
 
             destination[31:0] <= message[31:0] ^ scrambler[31:0];
@@ -300,7 +301,9 @@ module emmetcore_32b(
                     2'b01: begin                    
                         rx_gearboxslip <= 0;
                         rx_valid <= 0;
+                        error_flag <= 0;
                         if (rx_userdata_in != prev_data && !coreresetdone_rxclk) gearboxaligned_count <= gearboxaligned_count +1;
+                        else gearbox_aligned_count <= 0;
                         // Wait to exit reset until gearbox is aligned for 64 consecutive cycles
                         if (gearboxaligned_count > 7'b1000000) begin
                             gearboxaligned_count <= 0;
